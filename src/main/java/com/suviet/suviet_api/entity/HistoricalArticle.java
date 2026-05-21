@@ -18,7 +18,11 @@ public class HistoricalArticle {
     @JoinColumn(name = "period_id")
     @JsonIgnoreProperties("summary") // Ẩn bớt trường summary của triều đại khi hiển thị JSON cho gọn
     private HistoricalPeriod period;
+    @Column(length = 50)
+    private String year; // Cột lưu năm (Ví dụ: "Năm 938", "Năm 1010")
 
+    @Column(name = "short_summary", columnDefinition = "TEXT")
+    private String shortSummary; // Cột lưu đoạn tóm tắt ngắn (Hiển thị ở ô nền vàng trên Web)
     @Column(nullable = false, length = 255)
     private String title; // Tên sự kiện hoặc nhân vật (VD: Khởi nghĩa Lam Sơn)
 
@@ -29,6 +33,9 @@ public class HistoricalArticle {
     @Column(columnDefinition = "LONGTEXT", nullable = false)
     private String content;
 
-    @Column(name = "image_url")
-    private String imageUrl; // Link ảnh minh họa
+    @Column(name = "image",length = 255)
+    private String image; // Link ảnh minh họa
+    @Column(length = 50)
+    private String category; // Lưu mã thể loại như: trieu-dai, chong-ngoai-xam, khoi-nghia
+
 }

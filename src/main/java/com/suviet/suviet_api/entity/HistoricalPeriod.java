@@ -23,4 +23,9 @@ public class HistoricalPeriod {
 
     @Column(columnDefinition = "TEXT")
     private String summary; // Tóm tắt ngắn gọn
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(length = 255)
+    private String image;
 }
