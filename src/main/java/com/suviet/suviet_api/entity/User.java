@@ -2,41 +2,79 @@ package com.suviet.suviet_api.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
 @Data
-public class User {
+public class User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true, length = 50)
-    private String username; // Tên đăng nhập (phải là duy nhất)
+    private String username;
 
     @Column(nullable = false, length = 255)
-    private String password; // Mật khẩu (sau này sẽ dùng BCrypt để mã hóa, không lưu mật khẩu thô)
+    private String password;
 
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
     @Column(name = "full_name", length = 100)
-    private String fullName; // Tên hiển thị trên màn hình
+    private String fullName;
 
-    @Column(nullable = false, length = 20)
-    private String role; // Quyền của User: "ROLE_USER" hoặc "ROLE_ADMIN"
+    @Column(length = 20)
+    private String role; // Ví dụ: "USER" hoặc "ADMIN"
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt; // Ngày tạo tài khoản
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    // Hàm này tự động chạy trước khi lưu User mới vào DB để set ngày giờ hiện tại
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        if (role == null) {
-            role = "ROLE_USER"; // Mặc định ai đăng ký cũng là USER bình thường
-        }
+    // --- CÁC HÀM BẮT BUỘC CỦA SPRING SECURITY ---
+
+    // 1. Trả về quyền hạn (Role) của người dùng
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority(role));
+    }
+
+    // 2. Trả về mật khẩu
+    @Override
+    public String getPassword() {
+        return password;
+    }
+
+    // 3. Trả về tên đăng nhập
+    @Override
+    public String getUsername() {
+        return username;
+    }
+
+    // Các hàm kiểm tra tài khoản có bị khóa/hết hạn không (Mặc định cứ cho true hết)
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
     }
 }
