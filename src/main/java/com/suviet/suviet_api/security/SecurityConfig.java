@@ -41,7 +41,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/periods/**").permitAll() // Cho phép xem Triều đại
                         .requestMatchers("/api/v1/history/figures/**").permitAll() // Cho phép xem Nhân vật
                         .requestMatchers("/api/v1/quizzes/**").permitAll() // Cho phép lấy câu hỏi Trắc nghiệm
-
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/quizzes/submit").authenticated()//Chỉ cho phép XEM tự do (GET), còn nộp bài (POST) thì phải khóa lại
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/quizzes/history").authenticated()
                         // CÁC ĐƯỜNG LINK CÒN LẠI BẮT BUỘC ĐĂNG NHẬP
                         .anyRequest().authenticated()
                 )
