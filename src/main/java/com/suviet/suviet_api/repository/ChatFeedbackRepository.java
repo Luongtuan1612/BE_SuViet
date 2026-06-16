@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -17,4 +18,8 @@ public interface ChatFeedbackRepository extends JpaRepository<ChatFeedback, Long
     @Modifying
     @Query("DELETE FROM ChatFeedback f WHERE f.message.session.id = :sessionId")
     void deleteBySessionId(@Param("sessionId") Long sessionId);
+
+    @Modifying
+    @Query("DELETE FROM ChatFeedback f WHERE f.message.id IN :messageIds")
+    void deleteByMessageIds(@Param("messageIds") List<Long> messageIds);
 }

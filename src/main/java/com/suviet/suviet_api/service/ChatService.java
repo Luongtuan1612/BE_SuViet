@@ -14,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -50,14 +51,19 @@ public class ChatService {
 
         ChatSession session = getOrCreateSession(request, currentUser);
 
-        saveMessage(session, "USER", request.getQuestion(), null);
+        String question = request.getQuestion().trim();
 
-        AiChatResponse aiResponse = aiServiceClient.ask(request.getQuestion());
+        saveMessage(session, "USER", question, null);
+
+        AiChatResponse aiResponse = aiServiceClient.ask(question);
 
         if (aiResponse == null) {
             String errorMessage = "Không nhận được phản hồi từ AI Service.";
 
             ChatMessage aiErrorMessage = saveMessage(session, "AI", errorMessage, "[]");
+
+            session.setUpdatedAt(LocalDateTime.now());
+            chatSessionRepository.save(session);
 
             return new ChatResponse(
                     session.getId(),
@@ -71,7 +77,7 @@ public class ChatService {
 
         ChatMessage aiMessage = saveMessage(session, "AI", aiResponse.getAnswer(), sourcesJson);
 
-        session.setUpdatedAt(java.time.LocalDateTime.now());
+        session.setUpdatedAt(LocalDateTime.now());
         chatSessionRepository.save(session);
 
         return new ChatResponse(
@@ -106,16 +112,106 @@ public class ChatService {
             throw new RuntimeException("Bạn không có quyền xem cuộc trò chuyện này!");
         }
 
-        return chatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)
+        return buildMessageResponses(sessionId);
+    }
+
+    @Transactional
+    public List<ChatMessageResponse> editUserMessageAndRegenerate(
+            Long messageId,
+            EditChatMessageRequest request
+    ) {
+        String newQuestion = extractEditedQuestion(request);
+
+        User currentUser = getCurrentUser();
+
+        ChatMessage userMessage = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tin nhắn cần sửa!"));
+
+        if (!"USER".equalsIgnoreCase(userMessage.getSender())) {
+            throw new RuntimeException("Chỉ được sửa câu hỏi của người dùng!");
+        }
+
+        ChatSession session = userMessage.getSession();
+
+        if (session.getUser() == null || !session.getUser().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("Bạn không có quyền sửa tin nhắn này!");
+        }
+
+        Long sessionId = session.getId();
+
+        boolean isFirstMessage = isFirstMessageInSession(sessionId, userMessage.getId());
+
+        /*
+         * Lấy toàn bộ tin nhắn sau câu hỏi được sửa.
+         * Khi sửa một câu hỏi, các câu trả lời và câu hỏi phía sau không còn chắc đúng theo nhánh mới.
+         */
+        List<ChatMessage> messagesToDelete =
+                chatMessageRepository.findBySessionIdAndIdGreaterThanOrderByIdAsc(
+                        sessionId,
+                        userMessage.getId()
+                );
+
+        List<Long> messageIdsToDelete = messagesToDelete
                 .stream()
-                .map(message -> new ChatMessageResponse(
-                        message.getId(),
-                        message.getSender(),
-                        message.getMessage(),
-                        message.getSources(),
-                        message.getCreatedAt()
-                ))
+                .map(ChatMessage::getId)
                 .toList();
+
+        /*
+         * Xóa feedback trước để tránh lỗi khóa ngoại.
+         */
+        if (!messageIdsToDelete.isEmpty()) {
+            chatFeedbackRepository.deleteByMessageIds(messageIdsToDelete);
+            chatMessageRepository.deleteBySessionIdAndIdGreaterThan(sessionId, userMessage.getId());
+        }
+
+        /*
+         * Cập nhật lại câu hỏi của người dùng.
+         */
+        userMessage.setMessage(newQuestion);
+        userMessage.setSources(null);
+        chatMessageRepository.save(userMessage);
+
+        /*
+         * Gọi lại AI Service để tạo câu trả lời mới.
+         */
+        AiChatResponse aiResponse = null;
+
+        try {
+            aiResponse = aiServiceClient.ask(newQuestion);
+        } catch (Exception e) {
+            // Không ném lỗi ra ngoài để tránh rollback việc sửa câu hỏi.
+            aiResponse = null;
+        }
+
+        String answer;
+        String sourcesJson;
+        List<SourceDto> sources;
+
+        if (aiResponse == null) {
+            answer = "Không nhận được phản hồi từ AI Service.";
+            sources = Collections.emptyList();
+            sourcesJson = "[]";
+        } else {
+            answer = aiResponse.getAnswer();
+            sources = aiResponse.getSources() == null
+                    ? Collections.emptyList()
+                    : aiResponse.getSources();
+            sourcesJson = convertSourcesToJson(sources);
+        }
+
+        saveMessage(session, "AI", answer, sourcesJson);
+
+        /*
+         * Nếu sửa câu hỏi đầu tiên thì cập nhật lại tiêu đề cuộc trò chuyện.
+         */
+        if (isFirstMessage) {
+            session.setTitle(buildSessionTitle(newQuestion));
+        }
+
+        session.setUpdatedAt(LocalDateTime.now());
+        chatSessionRepository.save(session);
+
+        return buildMessageResponses(sessionId);
     }
 
     @Transactional
@@ -213,12 +309,7 @@ public class ChatService {
         ChatSession session = new ChatSession();
 
         session.setUser(user);
-
-        String title = question.length() > 50
-                ? question.substring(0, 50) + "..."
-                : question;
-
-        session.setTitle(title);
+        session.setTitle(buildSessionTitle(question));
 
         return chatSessionRepository.save(session);
     }
@@ -232,6 +323,67 @@ public class ChatService {
         chatMessage.setSources(sources);
 
         return chatMessageRepository.save(chatMessage);
+    }
+
+    private String extractEditedQuestion(EditChatMessageRequest request) {
+        if (request == null) {
+            throw new RuntimeException("Thiếu nội dung câu hỏi cần sửa!");
+        }
+
+        String value = request.getContent();
+
+        if (value == null || value.trim().isEmpty()) {
+            value = request.getQuestion();
+        }
+
+        if (value == null || value.trim().isEmpty()) {
+            value = request.getMessage();
+        }
+
+        if (value == null || value.trim().isEmpty()) {
+            throw new RuntimeException("Nội dung câu hỏi không được để trống!");
+        }
+
+        return value.trim();
+    }
+
+    private boolean isFirstMessageInSession(Long sessionId, Long messageId) {
+        List<ChatMessage> messages = chatMessageRepository.findBySessionIdOrderByIdAsc(sessionId);
+
+        if (messages.isEmpty()) {
+            return false;
+        }
+
+        return messages.get(0).getId().equals(messageId);
+    }
+
+    private String buildSessionTitle(String question) {
+        if (question == null || question.trim().isEmpty()) {
+            return "Cuộc trò chuyện mới";
+        }
+
+        String trimmed = question.trim();
+
+        return trimmed.length() > 50
+                ? trimmed.substring(0, 50) + "..."
+                : trimmed;
+    }
+
+    private List<ChatMessageResponse> buildMessageResponses(Long sessionId) {
+        return chatMessageRepository.findBySessionIdOrderByIdAsc(sessionId)
+                .stream()
+                .map(this::toChatMessageResponse)
+                .toList();
+    }
+
+    private ChatMessageResponse toChatMessageResponse(ChatMessage message) {
+        return new ChatMessageResponse(
+                message.getId(),
+                message.getSender(),
+                message.getMessage(),
+                message.getSources(),
+                message.getCreatedAt()
+        );
     }
 
     private String convertSourcesToJson(List<SourceDto> sources) {
