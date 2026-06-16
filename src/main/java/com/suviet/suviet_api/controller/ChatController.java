@@ -5,6 +5,7 @@ import com.suviet.suviet_api.dto.ChatMessageResponse;
 import com.suviet.suviet_api.dto.ChatRequest;
 import com.suviet.suviet_api.dto.ChatResponse;
 import com.suviet.suviet_api.dto.ChatSessionResponse;
+import com.suviet.suviet_api.dto.EditChatMessageRequest;
 import com.suviet.suviet_api.service.ChatService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +40,15 @@ public class ChatController {
     @GetMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<List<ChatMessageResponse>> getMessagesBySession(@PathVariable Long sessionId) {
         return ResponseEntity.ok(chatService.getMessagesBySession(sessionId));
+    }
+
+    // API sửa câu hỏi của người dùng và tạo lại câu trả lời AI
+    @PutMapping("/messages/{messageId}/edit")
+    public ResponseEntity<List<ChatMessageResponse>> editMessageAndRegenerate(
+            @PathVariable Long messageId,
+            @RequestBody EditChatMessageRequest request
+    ) {
+        return ResponseEntity.ok(chatService.editUserMessageAndRegenerate(messageId, request));
     }
 
     // API đánh giá câu trả lời AI
