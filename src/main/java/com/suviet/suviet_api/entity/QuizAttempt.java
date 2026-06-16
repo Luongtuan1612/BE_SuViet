@@ -23,6 +23,9 @@ public class QuizAttempt {
     @JoinColumn(name = "topic_id", nullable = false)
     private QuizTopic topic;
 
+    @Column(name = "difficulty", length = 20)
+    private String difficulty; // EASY, MEDIUM, HARD
+
     @Column(nullable = false)
     private int score; // Số câu trả lời đúng (Ví dụ: 8)
 

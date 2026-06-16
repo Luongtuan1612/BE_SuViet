@@ -13,32 +13,34 @@ public class QuizQuestion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Nhiều câu hỏi thuộc về 1 Chủ đề
+    // Nhiều câu hỏi thuộc về 1 chủ đề
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "topic_id", nullable = false)
     @JsonIgnoreProperties("questions")
     private QuizTopic topic;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String questionText; // Nội dung câu hỏi
+    @Column(name = "difficulty", nullable = false, length = 20)
+    private String difficulty = "EASY"; // EASY, MEDIUM, HARD
 
-    // 4 phương án lựa chọn
-    @Column(nullable = false)
+    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
+    private String questionText;
+
+    @Column(name = "optiona", nullable = false, columnDefinition = "TEXT")
     private String optionA;
 
-    @Column(nullable = false)
+    @Column(name = "optionb", nullable = false, columnDefinition = "TEXT")
     private String optionB;
 
-    @Column(nullable = false)
+    @Column(name = "optionc", nullable = false, columnDefinition = "TEXT")
     private String optionC;
 
-    @Column(nullable = false)
+    @Column(name = "optiond", nullable = false, columnDefinition = "TEXT")
     private String optionD;
 
-    // Lưu đáp án đúng dạng số: 0 = A, 1 = B, 2 = C, 3 = D (Để khớp với logic mảng trên React của bạn)
-    @Column(nullable = false)
+    // 0 = A, 1 = B, 2 = C, 3 = D
+    @Column(name = "correct_answer", nullable = false)
     private Integer correctAnswer;
 
-    @Column(columnDefinition = "TEXT")
-    private String explanation; // Lời giải thích chi tiết sau khi học sinh chọn đáp án
+    @Column(name = "explanation", columnDefinition = "TEXT")
+    private String explanation;
 }

@@ -15,11 +15,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/quizzes")
-@CrossOrigin(origins = "*") // Cực kỳ quan trọng: Cho phép ReactJS gọi API không bị lỗi CORS
+@CrossOrigin(origins = "*")
 public class QuizController {
 
     @Autowired
@@ -28,80 +30,123 @@ public class QuizController {
     @Autowired
     private QuizQuestionRepository questionRepository;
 
-    // THÊM 2 CẦU NỐI DATABASE MỚI ĐỂ LƯU ĐIỂM
     @Autowired
     private QuizAttemptRepository quizAttemptRepository;
 
     @Autowired
     private UserRepository userRepository;
 
-    // 1. Lấy toàn bộ danh sách các chủ đề Trắc nghiệm
+    // 1. Lấy toàn bộ chủ đề quiz
     @GetMapping("/topics")
     public ResponseEntity<List<QuizTopic>> getAllTopics() {
         List<QuizTopic> topics = topicRepository.findAll();
         return ResponseEntity.ok(topics);
     }
 
-    // 2. Lấy danh sách câu hỏi của một chủ đề cụ thể (dựa vào ID chủ đề)
+    // 2. Lấy câu hỏi theo chủ đề và độ khó
+    // Ví dụ:
+    // /api/v1/quizzes/topics/1/questions?difficulty=EASY
+    // /api/v1/quizzes/topics/1/questions?difficulty=MEDIUM
+    // /api/v1/quizzes/topics/1/questions?difficulty=HARD
     @GetMapping("/topics/{topicId}/questions")
-    public ResponseEntity<List<QuizQuestion>> getQuestionsByTopic(@PathVariable Long topicId) {
-        List<QuizQuestion> questions = questionRepository.findByTopicId(topicId);
+    public ResponseEntity<List<QuizQuestion>> getQuestionsByTopic(
+            @PathVariable Long topicId,
+            @RequestParam(required = false) String difficulty
+    ) {
+        List<QuizQuestion> questions;
+
+        if (difficulty == null || difficulty.isBlank()) {
+            questions = questionRepository.findByTopicIdOrderByIdAsc(topicId);
+        } else {
+            String normalizedDifficulty = normalizeDifficulty(difficulty);
+            questions = questionRepository.findByTopicIdAndDifficultyOrderByIdAsc(
+                    topicId,
+                    normalizedDifficulty
+            );
+        }
+
         return ResponseEntity.ok(questions);
     }
 
-    // 3. API Nộp bài và lưu điểm số (Bắt buộc phải đăng nhập có Token)
+    // 3. Nộp bài quiz và lưu lịch sử
     @PostMapping("/submit")
     public ResponseEntity<?> submitQuiz(@RequestBody QuizSubmitRequest request) {
-        // Lấy thông tin người dùng đang đăng nhập từ hệ thống bảo mật (Spring Security Context)
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        String currentUsername = authentication.getName(); // Rút tên Username từ Token ra
+        String currentUsername = authentication.getName();
 
-        // Tìm User trong Database
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng hiện tại!"));
 
-        // Tìm Chủ đề trắc nghiệm
         QuizTopic topic = topicRepository.findById(request.getTopicId())
                 .orElseThrow(() -> new RuntimeException("Chủ đề trắc nghiệm không tồn tại!"));
 
-        // Tạo đối tượng lịch sử làm bài và tiến hành lưu
+        String difficulty = normalizeDifficulty(request.getDifficulty());
+
         QuizAttempt attempt = new QuizAttempt();
         attempt.setUser(user);
         attempt.setTopic(topic);
+        attempt.setDifficulty(difficulty);
         attempt.setScore(request.getScore());
         attempt.setTotalQuestions(request.getTotalQuestions());
 
-        quizAttemptRepository.save(attempt); // Ghi điểm số xuống MySQL!
+        quizAttemptRepository.save(attempt);
 
-        return ResponseEntity.ok("Đã lưu kết quả bài kiểm tra thành công!");
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Đã lưu kết quả bài kiểm tra thành công!");
+        response.put("topicId", topic.getId());
+        response.put("topicTitle", topic.getTitle());
+        response.put("difficulty", difficulty);
+        response.put("score", attempt.getScore());
+        response.put("totalQuestions", attempt.getTotalQuestions());
+        response.put("completedAt", attempt.getCompletedAt());
+
+        return ResponseEntity.ok(response);
     }
-    // 4. API Lấy lịch sử làm bài của người dùng đang đăng nhập (Bắt buộc có Token)
+
+    // 4. Lấy lịch sử làm bài của user đang đăng nhập
     @GetMapping("/history")
     public ResponseEntity<?> getUserHistory() {
-        // Lấy tên người dùng từ Token
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = authentication.getName();
 
-        // Tìm User trong DB
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng hiện tại!"));
 
-        // Lấy danh sách các bài thi đã làm (Sắp xếp theo thời gian mới nhất lên đầu)
-        List<QuizAttempt> attempts = quizAttemptRepository.findByUserIdOrderByCompletedAtDesc(user.getId());
+        List<QuizAttempt> attempts =
+                quizAttemptRepository.findByUserIdOrderByCompletedAtDesc(user.getId());
 
-        // Để tránh trả về mật khẩu của User ra ngoài, chúng ta chỉ map các thông tin cần thiết
-        List<java.util.Map<String, Object>> response = attempts.stream().map(attempt -> {
-            java.util.Map<String, Object> map = new java.util.HashMap<>();
+        List<Map<String, Object>> response = attempts.stream().map(attempt -> {
+            Map<String, Object> map = new HashMap<>();
+
             map.put("id", attempt.getId());
             map.put("score", attempt.getScore());
             map.put("totalQuestions", attempt.getTotalQuestions());
+            map.put("difficulty", attempt.getDifficulty());
             map.put("completedAt", attempt.getCompletedAt());
-            map.put("topicTitle", attempt.getTopic().getTitle());
-            map.put("topicEmoji", attempt.getTopic().getEmoji());
+
+            if (attempt.getTopic() != null) {
+                map.put("topicId", attempt.getTopic().getId());
+                map.put("topicTitle", attempt.getTopic().getTitle());
+                map.put("topicEmoji", attempt.getTopic().getEmoji());
+            }
+
             return map;
         }).toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    private String normalizeDifficulty(String difficulty) {
+        if (difficulty == null || difficulty.isBlank()) {
+            return "EASY";
+        }
+
+        String value = difficulty.trim().toUpperCase();
+
+        return switch (value) {
+            case "EASY", "MEDIUM", "HARD" -> value;
+            default -> "EASY";
+        };
     }
 }

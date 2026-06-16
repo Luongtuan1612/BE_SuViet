@@ -8,6 +8,8 @@ import java.util.List;
 
 @Repository
 public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long> {
-    // Hàm tự động tìm tất cả câu hỏi thuộc về một chủ đề cụ thể
-    List<QuizQuestion> findByTopicId(Long topicId);
+
+    List<QuizQuestion> findByTopicIdOrderByIdAsc(Long topicId);
+
+    List<QuizQuestion> findByTopicIdAndDifficultyOrderByIdAsc(Long topicId, String difficulty);
 }

@@ -4,7 +4,12 @@ import lombok.Data;
 
 @Data
 public class QuizSubmitRequest {
-    private Long topicId;       // ID của chủ đề vừa làm
-    private int score;          // Số câu đúng
-    private int totalQuestions; // Tổng số câu hỏi
+
+    private Long topicId;
+
+    private String difficulty; // EASY, MEDIUM, HARD
+
+    private int score;
+
+    private int totalQuestions;
 }
