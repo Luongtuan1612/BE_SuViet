@@ -9,6 +9,9 @@ import java.util.List;
 @Repository
 public interface HistoricalArticleRepository extends JpaRepository<HistoricalArticle, Long> {
 
-    // Spring Boot siêu thông minh, bạn chỉ cần gõ đúng tên tiếng Anh, nó tự dịch ra câu lệnh SQL SELECT ... WHERE period_id = ?
     List<HistoricalArticle> findByPeriodId(Long periodId);
+
+    List<HistoricalArticle> findAllByOrderByIdDesc();
+
+    long countByArticleTypeIgnoreCase(String articleType);
 }

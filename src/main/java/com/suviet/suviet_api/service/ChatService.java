@@ -401,6 +401,7 @@ public class ChatService {
             json.append("\"title\":\"").append(escapeJson(source.getTitle())).append("\",");
             json.append("\"source\":\"").append(escapeJson(source.getSource())).append("\",");
             json.append("\"period\":\"").append(escapeJson(source.getPeriod())).append("\",");
+            json.append("\"url\":\"").append(escapeJson(source.getUrl())).append("\",");
             json.append("\"file_name\":\"").append(escapeJson(source.getFileName())).append("\",");
 
             if (source.getChunkIndex() == null) {

@@ -47,6 +47,9 @@ public class SecurityConfig {
                         // Đăng ký / đăng nhập
                         .requestMatchers("/api/v1/auth/**").permitAll()
 
+                        // Admin: chỉ tài khoản có quyền ADMIN mới được truy cập
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
+
                         // Chatbot AI yêu cầu đăng nhập
                         .requestMatchers("/api/v1/chat/**").authenticated()
 
@@ -68,7 +71,7 @@ public class SecurityConfig {
 
                         // Xem lịch sử làm bài cần đăng nhập
                         .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/history").authenticated()
-
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
                         // Các API còn lại bắt buộc đăng nhập
                         .anyRequest().authenticated()
                 )
