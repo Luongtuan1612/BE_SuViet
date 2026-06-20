@@ -12,6 +12,8 @@ public class SourceDto {
 
     private String period;
 
+    private String url;
+
     @JsonProperty("file_name")
     private String fileName;
 
