@@ -1,0 +1,263 @@
+package com.suviet.suviet_api.controller;
+
+import com.suviet.suviet_api.dto.AdminAiSourceRequest;
+import com.suviet.suviet_api.dto.AiFetchUrlRequest;
+import com.suviet.suviet_api.dto.AiFetchUrlResponse;
+import com.suviet.suviet_api.dto.AiIngestFileRequest;
+import com.suviet.suviet_api.dto.AiIngestFileResponse;
+import com.suviet.suviet_api.entity.AiSource;
+import com.suviet.suviet_api.repository.AiSourceRepository;
+import com.suviet.suviet_api.service.AiServiceClient;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import com.suviet.suviet_api.dto.AiDeleteFileRequest;
+import com.suviet.suviet_api.dto.AiDeleteFileResponse;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/admin/ai-sources")
+@CrossOrigin(origins = "*")
+public class AdminAiSourceController {
+
+    private final AiSourceRepository aiSourceRepository;
+    private final AiServiceClient aiServiceClient;
+
+    public AdminAiSourceController(
+            AiSourceRepository aiSourceRepository,
+            AiServiceClient aiServiceClient
+    ) {
+        this.aiSourceRepository = aiSourceRepository;
+        this.aiServiceClient = aiServiceClient;
+    }
+
+    @GetMapping
+    public List<AiSource> getAllSources() {
+        return aiSourceRepository.findAllByOrderByIdDesc();
+    }
+
+    @GetMapping("/stats")
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+
+        stats.put("totalSources", aiSourceRepository.count());
+        stats.put("message", "Thống kê nguồn tri thức AI");
+
+        return stats;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public AiSource createSource(@RequestBody AdminAiSourceRequest request) {
+        validateCreateRequest(request);
+
+        String url = cleanRequired(request.getUrl());
+
+        if (aiSourceRepository.existsByUrl(url)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Link nguồn này đã tồn tại trong hệ thống."
+            );
+        }
+
+        AiSource source = new AiSource();
+
+        source.setTitle(cleanRequired(request.getTitle()));
+        source.setUrl(url);
+        source.setPeriod(clean(request.getPeriod()));
+        source.setCategory(clean(request.getCategory()));
+        source.setStatus("PENDING");
+        source.setChunksAdded(0);
+        source.setTotalChunks(0);
+        source.setContentLength(0);
+
+        return aiSourceRepository.save(source);
+    }
+
+    @PostMapping("/{id}/fetch")
+    public AiSource fetchSource(@PathVariable Long id) {
+        AiSource source = getSourceById(id);
+
+        source.setStatus("PROCESSING");
+        source.setErrorMessage(null);
+        aiSourceRepository.save(source);
+
+        try {
+            AiFetchUrlRequest aiRequest = new AiFetchUrlRequest(
+                    source.getTitle(),
+                    source.getUrl(),
+                    source.getPeriod(),
+                    source.getCategory()
+            );
+
+            AiFetchUrlResponse aiResponse = aiServiceClient.fetchUrl(aiRequest);
+
+            if (aiResponse == null || !Boolean.TRUE.equals(aiResponse.getSuccess())) {
+                source.setStatus("FAILED");
+                source.setErrorMessage("AI Service không trả về kết quả lấy nội dung thành công.");
+                return aiSourceRepository.save(source);
+            }
+
+            source.setStatus("FETCHED");
+            source.setLocalFilePath(aiResponse.getFilePath());
+            source.setContentPreview(aiResponse.getContentPreview());
+            source.setContentLength(aiResponse.getContentLength());
+            source.setErrorMessage(null);
+
+            return aiSourceRepository.save(source);
+        } catch (Exception ex) {
+            source.setStatus("FAILED");
+            source.setErrorMessage(ex.getMessage());
+
+            return aiSourceRepository.save(source);
+        }
+    }
+
+    @PostMapping("/{id}/ingest")
+    public AiSource ingestSource(@PathVariable Long id) {
+        AiSource source = getSourceById(id);
+
+        if (isBlank(source.getLocalFilePath())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Nguồn này chưa có file TXT. Hãy bấm 'Lấy nội dung' trước."
+            );
+        }
+
+        source.setStatus("PROCESSING");
+        source.setErrorMessage(null);
+        aiSourceRepository.save(source);
+
+        try {
+            AiIngestFileRequest aiRequest = new AiIngestFileRequest(
+                    source.getLocalFilePath()
+            );
+
+            AiIngestFileResponse aiResponse = aiServiceClient.ingestFile(aiRequest);
+
+            if (aiResponse == null || !Boolean.TRUE.equals(aiResponse.getSuccess())) {
+                source.setStatus("FAILED");
+                source.setErrorMessage("AI Service không trả về kết quả nạp dữ liệu thành công.");
+                return aiSourceRepository.save(source);
+            }
+
+            source.setStatus("INGESTED");
+            source.setChunksAdded(aiResponse.getChunksAdded());
+            source.setTotalChunks(aiResponse.getTotalChunks());
+
+            if (Boolean.TRUE.equals(aiResponse.getSkipped())) {
+                source.setErrorMessage("Tài liệu đã được nạp trước đó, hệ thống đã bỏ qua.");
+            } else {
+                source.setErrorMessage(null);
+            }
+
+            return aiSourceRepository.save(source);
+        } catch (Exception ex) {
+            source.setStatus("FAILED");
+            source.setErrorMessage(ex.getMessage());
+
+            return aiSourceRepository.save(source);
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public Map<String, Object> deleteSource(@PathVariable Long id) {
+        AiSource source = getSourceById(id);
+
+        boolean deletedFromAiService = false;
+        boolean deletedFile = false;
+        String aiDeleteMessage = null;
+
+        if (!isBlank(source.getLocalFilePath())) {
+            try {
+                AiDeleteFileRequest aiRequest = new AiDeleteFileRequest(
+                        source.getLocalFilePath(),
+                        true
+                );
+
+                AiDeleteFileResponse aiResponse = aiServiceClient.deleteFile(aiRequest);
+
+                if (aiResponse != null && Boolean.TRUE.equals(aiResponse.getSuccess())) {
+                    deletedFromAiService = Boolean.TRUE.equals(aiResponse.getDeletedFromChroma());
+                    deletedFile = Boolean.TRUE.equals(aiResponse.getDeletedFile());
+                    aiDeleteMessage = aiResponse.getMessage();
+                }
+            } catch (Exception ex) {
+                aiDeleteMessage = "Không xóa được dữ liệu trong AI Service: " + ex.getMessage();
+            }
+        }
+
+        aiSourceRepository.delete(source);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("message", "Đã xóa nguồn AI khỏi danh sách quản trị.");
+        result.put("deletedId", id);
+        result.put("deletedFromAiService", deletedFromAiService);
+        result.put("deletedFile", deletedFile);
+        result.put("aiDeleteMessage", aiDeleteMessage);
+
+        return result;
+    }
+
+    private AiSource getSourceById(Long id) {
+        return aiSourceRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy nguồn AI có ID: " + id
+                ));
+    }
+
+    private void validateCreateRequest(AdminAiSourceRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Dữ liệu nguồn AI không được để trống."
+            );
+        }
+
+        if (isBlank(request.getTitle())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Tiêu đề nguồn không được để trống."
+            );
+        }
+
+        if (isBlank(request.getUrl())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Link nguồn không được để trống."
+            );
+        }
+
+        String url = request.getUrl().trim();
+
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Link nguồn phải bắt đầu bằng http:// hoặc https://."
+            );
+        }
+    }
+
+    private String clean(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String cleanRequired(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+}
