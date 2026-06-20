@@ -2,12 +2,16 @@ package com.suviet.suviet_api.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "historical_figures")
-@Data
+@Getter
+@Setter
 public class HistoricalFigure {
 
     @Id
@@ -15,27 +19,38 @@ public class HistoricalFigure {
     private Long id;
 
     @Column(nullable = false, length = 100)
-    private String name; // Tên nhân vật (VD: Ngô Quyền, Trần Hưng Đạo)
+    private String name;
 
     @Column(name = "born_died", length = 50)
-    private String bornDied; // Năm sinh - năm mất (VD: 898 – 944)
+    private String bornDied;
 
     @Column(columnDefinition = "TEXT")
-    private String description; // Tóm tắt ngắn về nhân vật
+    private String description;
 
     @Column(columnDefinition = "LONGTEXT")
-    private String story; // Tiểu sử chi tiết cuộc đời và sự nghiệp
+    private String story;
 
-    @Column(length = 255)
-    private String image; // Đường dẫn ảnh của nhân vật
+    @Column(length = 500)
+    private String image;
 
-    // Kết nối Nhiều-Nhiều với bảng Sự kiện (HistoricalArticle)
+    /*
+     * Quan hệ nhiều - nhiều giữa nhân vật lịch sử và sự kiện lịch sử.
+     *
+     * Một nhân vật có thể xuất hiện trong nhiều sự kiện.
+     * Một sự kiện có thể liên quan đến nhiều nhân vật.
+     *
+     * Bảng trung gian: article_figure
+     */
     @ManyToMany
     @JoinTable(
-            name = "article_figure", // Tên bảng trung gian tự động sinh ra
+            name = "article_figure",
             joinColumns = @JoinColumn(name = "figure_id"),
             inverseJoinColumns = @JoinColumn(name = "article_id")
     )
-    @JsonIgnoreProperties("figures") // Chống lặp vô hạn khi xuất JSON
-    private List<HistoricalArticle> articles;
+    @JsonIgnoreProperties({
+            "figures",
+            "hibernateLazyInitializer",
+            "handler"
+    })
+    private List<HistoricalArticle> articles = new ArrayList<>();
 }
