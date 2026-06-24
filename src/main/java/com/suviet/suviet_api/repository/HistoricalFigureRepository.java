@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface HistoricalFigureRepository extends JpaRepository<HistoricalFigure, Long> {
 
-    // Hàm ma thuật của Spring Data JPA: Tự động tìm các nhân vật dựa vào ID của Sự kiện
-    // (Vì 1 sự kiện có thể có nhiều nhân vật tham gia)
+    List<HistoricalFigure> findAllByOrderByIdDesc();
+
     List<HistoricalFigure> findByArticlesId(Long articleId);
 }
