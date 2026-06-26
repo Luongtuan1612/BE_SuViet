@@ -9,6 +9,8 @@ public class AiIngestFileResponse {
     private Boolean skipped;
     private String message;
     private String filePath;
+    private String documentId;
+    private String sourceUrl;
     private Integer chunksAdded;
     private Integer totalChunks;
 }

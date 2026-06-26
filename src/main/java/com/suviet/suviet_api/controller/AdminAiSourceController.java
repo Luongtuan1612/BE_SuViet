@@ -132,6 +132,12 @@ public class AdminAiSourceController {
         aiSourceRepository.save(source);
 
         try {
+            System.out.println("\n========== SPRING BOOT INGEST SOURCE ==========");
+            System.out.println("Source ID: " + source.getId());
+            System.out.println("Title: " + source.getTitle());
+            System.out.println("URL: " + source.getUrl());
+            System.out.println("Local file path: " + source.getLocalFilePath());
+
             AiIngestFileRequest aiRequest = new AiIngestFileRequest(
                     source.getLocalFilePath()
             );
@@ -144,9 +150,30 @@ public class AdminAiSourceController {
                 return aiSourceRepository.save(source);
             }
 
+            Integer chunksAdded = aiResponse.getChunksAdded() == null ? 0 : aiResponse.getChunksAdded();
+            Integer totalChunks = aiResponse.getTotalChunks() == null ? 0 : aiResponse.getTotalChunks();
+
+            System.out.println("AI response message: " + aiResponse.getMessage());
+            System.out.println("Document ID: " + aiResponse.getDocumentId());
+            System.out.println("Source URL in Chroma: " + aiResponse.getSourceUrl());
+            System.out.println("Chunks added: " + chunksAdded);
+            System.out.println("Total chunks: " + totalChunks);
+            System.out.println("==============================================\n");
+
+            if (chunksAdded <= 0 && !Boolean.TRUE.equals(aiResponse.getSkipped())) {
+                source.setStatus("FAILED");
+                source.setChunksAdded(chunksAdded);
+                source.setTotalChunks(totalChunks);
+                source.setErrorMessage(
+                        "AI Service đã phản hồi nhưng không có chunk nào được thêm vào ChromaDB."
+                );
+
+                return aiSourceRepository.save(source);
+            }
+
             source.setStatus("INGESTED");
-            source.setChunksAdded(aiResponse.getChunksAdded());
-            source.setTotalChunks(aiResponse.getTotalChunks());
+            source.setChunksAdded(chunksAdded);
+            source.setTotalChunks(totalChunks);
 
             if (Boolean.TRUE.equals(aiResponse.getSkipped())) {
                 source.setErrorMessage("Tài liệu đã được nạp trước đó, hệ thống đã bỏ qua.");
@@ -201,6 +228,55 @@ public class AdminAiSourceController {
         result.put("aiDeleteMessage", aiDeleteMessage);
 
         return result;
+    }
+    @GetMapping("/knowledge-sources")
+    public Map<String, Object> getKnowledgeSources() {
+        try {
+            return aiServiceClient.listKnowledgeSources();
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Không lấy được danh sách source_url từ AI Service: " + ex.getMessage()
+            );
+        }
+    }
+
+    @GetMapping("/knowledge-sources/chunks")
+    public Map<String, Object> getKnowledgeChunks(@RequestParam String sourceUrl) {
+        if (isBlank(sourceUrl)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "sourceUrl không được để trống."
+            );
+        }
+
+        try {
+            return aiServiceClient.listKnowledgeChunks(sourceUrl);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Không lấy được danh sách chunk từ AI Service: " + ex.getMessage()
+            );
+        }
+    }
+
+    @DeleteMapping("/knowledge-sources")
+    public Map<String, Object> deleteKnowledgeSource(@RequestParam String sourceUrl) {
+        if (isBlank(sourceUrl)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "sourceUrl không được để trống."
+            );
+        }
+
+        try {
+            return aiServiceClient.deleteKnowledgeSource(sourceUrl);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Không xóa được source_url trong AI Service: " + ex.getMessage()
+            );
+        }
     }
 
     private AiSource getSourceById(Long id) {
