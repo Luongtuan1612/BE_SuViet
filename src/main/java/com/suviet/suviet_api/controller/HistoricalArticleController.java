@@ -22,7 +22,6 @@ public class HistoricalArticleController {
     }
 
     // API 2: Lấy danh sách bài viết theo ID của một triều đại cụ thể
-    // Ví dụ: /api/v1/history/articles/period/1 (Lấy bài viết của triều đại có ID = 1)
     @GetMapping("/period/{periodId}")
     public List<HistoricalArticle> getArticlesByPeriod(@PathVariable Long periodId) {
         return articleRepository.findByPeriodId(periodId);

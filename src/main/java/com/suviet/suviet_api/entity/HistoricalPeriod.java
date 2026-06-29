@@ -9,20 +9,20 @@ import lombok.Data;
 public class HistoricalPeriod {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Tự động tăng ID (Auto Increment)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, length = 255)
-    private String name; // Tên triều đại (VD: Thời Bắc thuộc, Nhà Lý)
+    private String name;
 
     @Column(name = "start_year")
-    private Integer startYear; // Năm bắt đầu
+    private Integer startYear;
 
     @Column(name = "end_year")
-    private Integer endYear; // Năm kết thúc
+    private Integer endYear;
 
     @Column(columnDefinition = "TEXT")
-    private String summary; // Tóm tắt ngắn gọn
+    private String summary;
     @Column(columnDefinition = "TEXT")
     private String description;
 

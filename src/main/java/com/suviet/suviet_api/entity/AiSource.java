@@ -23,8 +23,14 @@ public class AiSource {
     @Column(length = 255)
     private String period;
 
+    @Column(name = "period_id")
+    private Long periodId;
+
     @Column(length = 255)
     private String category;
+
+    @Column(name = "created_by_user_id")
+    private Long createdByUserId;
 
     @Column(nullable = false, length = 30)
     private String status = "PENDING";

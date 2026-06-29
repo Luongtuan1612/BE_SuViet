@@ -18,7 +18,6 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    // Lấy con dấu bí mật từ application.properties
     @Value("${jwt.secret}")
     private String secretKey;
 
@@ -30,10 +29,10 @@ public class JwtService {
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
                 .setClaims(new HashMap<>())
-                .setSubject(userDetails.getUsername()) // Lưu tên đăng nhập vào thẻ
-                .setIssuedAt(new Date(System.currentTimeMillis())) // Ngày cấp
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration)) // Ngày hết hạn
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256) // Đóng dấu bảo mật
+                .setSubject(userDetails.getUsername())
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
+                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 

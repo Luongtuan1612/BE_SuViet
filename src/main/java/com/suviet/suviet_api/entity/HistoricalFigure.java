@@ -33,14 +33,6 @@ public class HistoricalFigure {
     @Column(length = 500)
     private String image;
 
-    /*
-     * Quan hệ nhiều - nhiều giữa nhân vật lịch sử và sự kiện lịch sử.
-     *
-     * Một nhân vật có thể xuất hiện trong nhiều sự kiện.
-     * Một sự kiện có thể liên quan đến nhiều nhân vật.
-     *
-     * Bảng trung gian: article_figure
-     */
     @ManyToMany
     @JoinTable(
             name = "article_figure",

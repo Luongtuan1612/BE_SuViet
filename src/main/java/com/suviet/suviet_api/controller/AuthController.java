@@ -31,7 +31,6 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Tên đăng nhập đã tồn tại, vui lòng chọn tên khác!");
         }
 
-        // Tạo người dùng mới
         User user = new User();
         user.setUsername(request.getUsername());
         // Mã hóa mật khẩu trước khi lưu vào Database
@@ -48,18 +47,15 @@ public class AuthController {
     // 2. API Đăng nhập
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        // Gọi Bác bảo vệ ra kiểm tra Username và Password có khớp trong DB không
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
-        // Nếu qua được bước trên (không sai mật khẩu), thì tìm User đó ra
         User user = userRepository.findByUsername(request.getUsername()).orElseThrow();
 
         // In Thẻ bài (Token)
         String token = jwtService.generateToken(user);
 
-        // Giao Thẻ bài lại cho Frontend
         return ResponseEntity.ok(new AuthResponse(token, user.getUsername(), user.getRole()));
     }
 }

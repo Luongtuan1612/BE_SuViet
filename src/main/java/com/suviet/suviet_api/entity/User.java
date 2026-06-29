@@ -32,7 +32,7 @@ public class User implements UserDetails {
     private String fullName;
 
     @Column(length = 20)
-    private String role; // Ví dụ: "USER" hoặc "ADMIN"
+    private String role;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -57,7 +57,6 @@ public class User implements UserDetails {
         return username;
     }
 
-    // Các hàm kiểm tra tài khoản có bị khóa/hết hạn không (Mặc định cứ cho true hết)
     @Override
     public boolean isAccountNonExpired() {
         return true;
