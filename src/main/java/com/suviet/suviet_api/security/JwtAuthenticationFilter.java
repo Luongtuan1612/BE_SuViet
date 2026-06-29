@@ -28,32 +28,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 1. Khách đến cửa, bác bảo vệ yêu cầu xem Header "Authorization"
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String username;
 
-        // 2. Nếu không có Header, hoặc Header không bắt đầu bằng chữ "Bearer " -> Cho đi tiếp (Luật của Spring sẽ tự chặn lại nếu vùng đó cấm)
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 3. Tách lấy vé thật (Cắt bỏ 7 ký tự "Bearer " ở đầu)
         jwt = authHeader.substring(7);
 
-        // 4. Nhờ JwtService soi vé để lấy tên người dùng
         username = jwtService.extractUsername(jwt);
 
-        // 5. Nếu có tên người dùng, và người này chưa được cấp thẻ đi lại trong hệ thống
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            // Lục hồ sơ người dùng từ Database lên
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
-            // 6. Soi xem vé có hợp lệ với người này không
             if (jwtService.isTokenValid(jwt, userDetails)) {
-                // Vé xịn -> Cấp cho cái thẻ thông hành (AuthenticationToken)
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -66,7 +58,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
-        // Mời đi tiếp vào bên trong
         filterChain.doFilter(request, response);
     }
 }

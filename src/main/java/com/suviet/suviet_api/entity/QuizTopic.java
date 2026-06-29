@@ -13,11 +13,11 @@ public class QuizTopic {
     private Long id;
 
     @Column(nullable = false, length = 100)
-    private String title; // Tên chủ đề (VD: Trận chiến trên sông Bạch Đằng)
+    private String title;
 
     @Column(length = 255)
-    private String description; // Mô tả ngắn của bài test (VD: Kiểm tra kiến thức trận 938)
+    private String description;
 
     @Column(length = 10)
-    private String emoji; // Biểu tượng vui nhộn hiển thị trên giao diện (VD: ⚔️, 👑)
+    private String emoji;
 }

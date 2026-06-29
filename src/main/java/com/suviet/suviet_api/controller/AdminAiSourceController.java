@@ -5,14 +5,20 @@ import com.suviet.suviet_api.dto.AiFetchUrlRequest;
 import com.suviet.suviet_api.dto.AiFetchUrlResponse;
 import com.suviet.suviet_api.dto.AiIngestFileRequest;
 import com.suviet.suviet_api.dto.AiIngestFileResponse;
-import com.suviet.suviet_api.entity.AiSource;
-import com.suviet.suviet_api.repository.AiSourceRepository;
-import com.suviet.suviet_api.service.AiServiceClient;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import com.suviet.suviet_api.dto.AiDeleteFileRequest;
 import com.suviet.suviet_api.dto.AiDeleteFileResponse;
+import com.suviet.suviet_api.entity.AiSource;
+import com.suviet.suviet_api.entity.HistoricalPeriod;
+import com.suviet.suviet_api.entity.User;
+import com.suviet.suviet_api.repository.AiSourceRepository;
+import com.suviet.suviet_api.repository.HistoricalPeriodRepository;
+import com.suviet.suviet_api.repository.UserRepository;
+import com.suviet.suviet_api.service.AiServiceClient;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,13 +31,19 @@ public class AdminAiSourceController {
 
     private final AiSourceRepository aiSourceRepository;
     private final AiServiceClient aiServiceClient;
+    private final UserRepository userRepository;
+    private final HistoricalPeriodRepository historicalPeriodRepository;
 
     public AdminAiSourceController(
             AiSourceRepository aiSourceRepository,
-            AiServiceClient aiServiceClient
+            AiServiceClient aiServiceClient,
+            UserRepository userRepository,
+            HistoricalPeriodRepository historicalPeriodRepository
     ) {
         this.aiSourceRepository = aiSourceRepository;
         this.aiServiceClient = aiServiceClient;
+        this.userRepository = userRepository;
+        this.historicalPeriodRepository = historicalPeriodRepository;
     }
 
     @GetMapping
@@ -63,12 +75,31 @@ public class AdminAiSourceController {
             );
         }
 
+        String periodName = clean(request.getPeriod());
+        Long periodId = request.getPeriodId();
+
+        if (periodId != null) {
+            HistoricalPeriod period = historicalPeriodRepository.findById(periodId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Giai đoạn lịch sử không tồn tại."
+                    ));
+
+            // Nếu frontend chỉ gửi periodId mà chưa gửi tên giai đoạn,
+            // backend tự lấy tên giai đoạn để giữ metadata gửi sang AI Service.
+            if (isBlank(periodName)) {
+                periodName = period.getName();
+            }
+        }
+
         AiSource source = new AiSource();
 
         source.setTitle(cleanRequired(request.getTitle()));
         source.setUrl(url);
-        source.setPeriod(clean(request.getPeriod()));
+        source.setPeriod(periodName);
+        source.setPeriodId(periodId);
         source.setCategory(clean(request.getCategory()));
+        source.setCreatedByUserId(getCurrentUserId());
         source.setStatus("PENDING");
         source.setChunksAdded(0);
         source.setTotalChunks(0);
@@ -229,6 +260,7 @@ public class AdminAiSourceController {
 
         return result;
     }
+
     @GetMapping("/knowledge-sources")
     public Map<String, Object> getKnowledgeSources() {
         try {
@@ -284,6 +316,26 @@ public class AdminAiSourceController {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Không tìm thấy nguồn AI có ID: " + id
+                ));
+    }
+
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || isBlank(authentication.getName())) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Không xác định được quản trị viên hiện tại."
+            );
+        }
+
+        String username = authentication.getName();
+
+        return userRepository.findByUsername(username)
+                .map(User::getId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Không tìm thấy tài khoản quản trị viên hiện tại."
                 ));
     }
 

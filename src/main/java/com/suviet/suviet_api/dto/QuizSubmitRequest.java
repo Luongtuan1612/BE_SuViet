@@ -7,7 +7,7 @@ public class QuizSubmitRequest {
 
     private Long topicId;
 
-    private String difficulty; // EASY, MEDIUM, HARD
+    private String difficulty;
 
     private int score;
 

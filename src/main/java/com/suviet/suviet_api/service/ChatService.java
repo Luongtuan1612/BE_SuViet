@@ -141,10 +141,6 @@ public class ChatService {
 
         boolean isFirstMessage = isFirstMessageInSession(sessionId, userMessage.getId());
 
-        /*
-         * Lấy toàn bộ tin nhắn sau câu hỏi được sửa.
-         * Khi sửa một câu hỏi, các câu trả lời và câu hỏi phía sau không còn chắc đúng theo nhánh mới.
-         */
         List<ChatMessage> messagesToDelete =
                 chatMessageRepository.findBySessionIdAndIdGreaterThanOrderByIdAsc(
                         sessionId,
@@ -156,30 +152,22 @@ public class ChatService {
                 .map(ChatMessage::getId)
                 .toList();
 
-        /*
-         * Xóa feedback trước để tránh lỗi khóa ngoại.
-         */
         if (!messageIdsToDelete.isEmpty()) {
             chatFeedbackRepository.deleteByMessageIds(messageIdsToDelete);
             chatMessageRepository.deleteBySessionIdAndIdGreaterThan(sessionId, userMessage.getId());
         }
 
-        /*
-         * Cập nhật lại câu hỏi của người dùng.
-         */
+
         userMessage.setMessage(newQuestion);
         userMessage.setSources(null);
         chatMessageRepository.save(userMessage);
 
-        /*
-         * Gọi lại AI Service để tạo câu trả lời mới.
-         */
+
         AiChatResponse aiResponse = null;
 
         try {
             aiResponse = aiServiceClient.ask(newQuestion);
         } catch (Exception e) {
-            // Không ném lỗi ra ngoài để tránh rollback việc sửa câu hỏi.
             aiResponse = null;
         }
 
@@ -201,9 +189,6 @@ public class ChatService {
 
         saveMessage(session, "AI", answer, sourcesJson);
 
-        /*
-         * Nếu sửa câu hỏi đầu tiên thì cập nhật lại tiêu đề cuộc trò chuyện.
-         */
         if (isFirstMessage) {
             session.setTitle(buildSessionTitle(newQuestion));
         }

@@ -47,42 +47,39 @@ public class SecurityConfig {
                         // Đăng ký / đăng nhập
                         .requestMatchers("/api/v1/auth/**").permitAll()
 
-                        // Admin: chỉ tài khoản có quyền ADMIN mới được truy cập
-                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
-
-                        // Chatbot AI yêu cầu đăng nhập
-                        .requestMatchers("/api/v1/chat/**").authenticated()
-
                         // Lịch sử: bài viết, thời kỳ, nhân vật
                         .requestMatchers("/api/v1/history/articles/**").permitAll()
                         .requestMatchers("/api/v1/history/periods/**").permitAll()
-                        .requestMatchers("/api/v1/periods/**").permitAll()
                         .requestMatchers("/api/v1/history/figures/**").permitAll()
+                        .requestMatchers("/api/v1/periods/**").permitAll()
 
-                        // Quiz: cho phép GET danh sách chủ đề/câu hỏi
-                        .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
+                        // =========================
+                        // API ADMIN - Chỉ ADMIN được truy cập
+                        // =========================
+
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
 
                         // =========================
                         // API CẦN ĐĂNG NHẬP
                         // =========================
 
-                        // Nộp bài quiz cần đăng nhập
-                        .requestMatchers(HttpMethod.POST, "/api/v1/quizzes/submit").authenticated()
+                        // Chatbot AI yêu cầu đăng nhập
+                        .requestMatchers("/api/v1/chat/**").authenticated()
 
-                        // Xem lịch sử làm bài cần đăng nhập
+                        // Quiz: nộp bài và xem lịch sử cần đăng nhập
+                        .requestMatchers(HttpMethod.POST, "/api/v1/quizzes/submit").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/history").authenticated()
-                        .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
+
+                        // Quiz: cho phép xem danh sách chủ đề/câu hỏi
+                        .requestMatchers(HttpMethod.GET, "/api/v1/quizzes/**").permitAll()
+
                         // Các API còn lại bắt buộc đăng nhập
                         .anyRequest().authenticated()
                 )
-
-                // Không lưu session trên server vì dùng JWT
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Khai báo AuthenticationProvider
                 .authenticationProvider(authenticationProvider())
 
-                // Đặt JWT filter trước UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

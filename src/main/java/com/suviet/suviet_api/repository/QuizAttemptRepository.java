@@ -7,7 +7,6 @@ import java.util.List;
 
 @Repository
 public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, Long> {
-    // Hàm mở rộng: Sau này dùng để lấy lịch sử thi của riêng 1 người dùng
     List<QuizAttempt> findByUserIdOrderByCompletedAtDesc(Long userId);
 
     long countByTopicId(Long topicId);

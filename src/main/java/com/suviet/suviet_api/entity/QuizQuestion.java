@@ -13,7 +13,7 @@ public class QuizQuestion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Nhiều câu hỏi thuộc về 1 chủ đề
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "topic_id", nullable = false)
     @JsonIgnoreProperties("questions")
